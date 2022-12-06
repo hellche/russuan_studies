@@ -1,2 +1,2 @@
 # russuan_studies
-page: 
+page: https://hellche.github.io/russuan_studies/
