@@ -1,0 +1,715 @@
+---
+title: "Аналитика на сайте (плюс первая статья)"
+output: html_document
+date: '2022-12-01'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,  warning = FALSE, message =  FALSE) # By default, hide code; set to TRUE to see code
+#knitr::opts_chunk$set(fig.pos = 'p') # Places figures on pages separate from text
+#knitr::opts_chunk$set(out.width = '100%', dpi=300) # Figure resolution and size
+#knitr::opts_chunk$set(fig.env="figure") # Latex figure environment
+```
+
+```{r packages}
+library(tidyverse)
+library(haven)
+library(readr)
+library(table1)
+library(sjlabelled)
+library(ggpubr)
+library(ggridges)
+library(ggsignif)
+library(patchwork)
+library(expss)
+library(FactoMineR)
+library(factoextra)
+library(RColorBrewer)
+library(stringr)
+library(stringr)
+library(stringi)
+library(tidyverse)
+library(haven)
+library(readr)
+library(table1)
+library(sjlabelled)
+library(ggpubr)
+library(ggridges)
+library(ggsignif)
+library(patchwork)
+library(tibble)
+library(ggpmisc)
+library(readxl)
+#library(glmmTMB)
+#library(sjPlot)
+#library(sjmisc)
+library(sjlabelled)
+#library(jtools)
+#library(ggstance)
+#library(huxtable)
+#library(MASS)
+#library(pscl) 
+library(data.table)
+library(ggthemes)
+library(ggpubr)
+library(knitr)
+options(kableExtra.latex.load_packages = FALSE)
+library(kableExtra)
+library(DT)
+```
+
+```{r functions}
+pvalue <- function(x, ...) {
+    # Construct vectors of data y, and groups (strata) g
+    y <- unlist(x)
+    g <- factor(rep(1:length(x), times=sapply(x, length)))
+    if (is.numeric(y)) {
+        # For numeric variables, perform a standard 2-sample t-test
+        p <- t.test(y ~ g)$p.value
+    } else {
+        # For categorical variables, perform a chi-squared test of independence
+        p <- chisq.test(table(y, g),correct = TRUE, simulate.p.value = TRUE, B = 10000)$p.value
+    }
+    # Format the p-value, using an HTML entity for the less-than sign.
+    # The initial empty string places the output on the line below the variable label.
+    c("", sub("<", "&lt;", format.pval(p, digits=3, eps=0.001)))
+}
+
+
+#simulate.p.value = FALSE, B = 2000
+
+all_test <- function(x, ...) {
+    # Construct vectors of data y, and groups (strata) g
+    y <- unlist(x)
+    g <- factor(rep(1:length(x), times=sapply(x, length)))
+    if (is.numeric(y)) {
+        # For numeric variables, perform a standard 2-sample t-test
+        p <- t.test(y ~ g)$p.value
+        t <- t.test(y ~ g)$statistic
+        par <- t.test(y ~ g)$parameter
+    } else {
+        # For categorical variables, perform a chi-squared test of independence
+        p <- chisq.test(table(y, g))$p.value
+        t <- chisq.test(table(y, g))$statistic
+        par <- chisq.test(table(y, g))$parameter
+    }
+    # Format the p-value, using an HTML entity for the less-than sign.
+    # The initial empty string places the output on the line below the variable label.
+    c("", paste0(sub("<", "&lt;", format.pval(p, digits=3, eps=0.001)), "; val test stat = " , round(t, digits=3), "; df =" , round(par, digits=3)))
+}
+```
+
+```{r data}
+data <- read_excel("data/full_data_precise original.xlsx") 
+
+#data2 <- read_excel("data/data_website original.xlsx")
+
+#organisation_full_names <- read_excel("data/organisation_full_names.xlsx") %>% select(1,2) %>%
+# rename(organisation_full_from_exel = organisation_full)
+
+#colnames(data)
+```
+
+***
+
+# ВАЖНЫЕ ЗАМЕЧАНИЯ
+
+> В документе всё постоено на `full_data_precise_original`. Никаких манипуляций с данным не произведено.
+> Если исследовательская область выглядит как список, например, `Political Science; Area Studies`, тогда публикация дублируется и считатся как +1 публикация для каждой из областей в списке. 
+
+***
+
+
+## PRODUCTION OF PUBLICATIONS
+
+
+#### (1)	График динамики, на котором также виден прирост в % (вторая шкала). Типа такого. Два графика: один для социальных наук, один для гуманитарных.
+
+```{r, eval=FALSE}
+data %>% distinct(UT, .keep_all = TRUE) %>% 
+  ggplot(aes(year)) +
+  geom_bar(stat = "count") +
+  facet_wrap(~field)
+```
+
+```{r, eval=FALSE}
+data %>% distinct(UT, .keep_all = TRUE) %>% select(year,field) %>% 
+  #filter(field == "['SSCI']") %>% 
+  group_by(year, field) %>% count() %>% ungroup() %>% 
+  group_by(field) %>% arrange(field, year) %>% 
+  #mutate(change_to_1990 = 100 * n / n[year==1990]) %>% 
+  mutate(grow = (n *100 /lag(n)) - 100) %>%  
+  ggplot(aes(as.factor(year), grow, group = field)) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_point() + 
+  geom_line()+
+  theme_bw() + 
+  facet_wrap(~field, nrow = 3) +
+  scale_y_continuous(labels = function(x) paste0(x, "%")) +
+  #labs(y = "Change to 2016", subtitle = "2016 as 100%", title = "Change in PhDs count over 10 years") +
+  theme(legend.position = "none",
+        legend.justification ='left') + 
+  theme(axis.title.x = element_blank(),
+        panel.grid = element_blank()) +
+  theme(strip.background = element_rect(fill = NA))+
+  theme(strip.text = element_text(colour = 'black')) +
+  theme(strip.text = element_text(size = 7)) +
+  theme(axis.text.x = element_text(size = 6, angle = 90)) +
+  theme(axis.text.y = element_text(size = 8)) +
+  theme(legend.title= element_blank()) 
+
+```
+
+
+```{r}
+df <- data %>% distinct(UT, .keep_all = TRUE) %>% select(year,field) %>% 
+  #filter(field == "['SSCI']") %>% 
+  group_by(year, field) %>% count() %>% ungroup() %>% 
+  group_by(field) %>% arrange(field, year) %>% 
+  mutate(change_to_1990 = 100 * n / n[year==1990]) # %>% 
+  #mutate(grow = (n *100 /lag(n)) - 100)
+#df$grow[df$year == 1990] <- 0
+
+ylim.prim <- c(0,600)   # in this example, precipitation
+ylim.sec <- c(60, 200)    # in this example, temperature
+
+b <- diff(ylim.prim)/diff(ylim.sec)
+a <- ylim.prim[1] - (b*ylim.sec[1]) # there was a bug here
+
+ggplot(df,aes(x=year)) + 
+  geom_col(aes(y = n), fill = "grey") +
+  geom_hline(yintercept = a + 100*b, linetype = "dashed",  color = "blue") +
+
+  #geom_line(aes(y = a + grow*b), size = 1, color = "blue") +
+  ggalt::geom_xspline(aes(y = a + change_to_1990*b), size = 1, color = "blue",spline_shape=-0.4) +
+  geom_point(aes(y = a + change_to_1990*b), colour="black",pch=21, size=2) +
+  scale_y_continuous(sec.axis = sec_axis(~ (. - a)/b, name = "Change to 1990",
+                     labels = function(b) { paste0(b, "%")})) + 
+  
+  scale_x_continuous(
+        labels = as.character(seq(min(df$year), max(df$year), by = 1)), 
+        breaks = seq(min(df$year), max(df$year), by = 1), 
+        expand=c(0,0)
+    ) +
+   facet_wrap(~field, nrow = 3) +
+    theme_bw() +
+  theme(axis.title.y = element_text(color = "grey")) +
+  theme(axis.line.y.right = element_line(color = "blue"), 
+        axis.ticks.y.right = element_line(color = "blue"),
+        #axis.text.y.right = element_text(color = "blue"), 
+        axis.title.y.right = element_text(color = "blue", vjust=3)) + 
+  labs(y = "Number of papers", subtitle = "1990 за 100%", title = "(А) Число статей + настоколь это число росло/падало по сравнению с 1990") +
+  theme(legend.position = "none",
+        legend.justification ='left') + 
+  theme(axis.title.x = element_blank(),
+        panel.grid = element_blank()) +
+  theme(strip.background = element_rect(fill = NA))+
+  theme(strip.text = element_text(colour = 'black')) +
+  theme(strip.text = element_text(size = 7)) +
+  theme(axis.text.x = element_text(size = 6, angle = 90, vjust=0.5)) +
+  theme(axis.text.y = element_text(size = 8)) +
+  theme(legend.title= element_blank())
+
+df <- data %>% distinct(UT, .keep_all = TRUE) %>% select(year,field) %>% 
+  #filter(field == "['SSCI']") %>% 
+  group_by(year, field) %>% count() %>% ungroup() %>% 
+  group_by(field) %>% arrange(field, year) %>% 
+  #mutate(change_to_1990 = 100 * n / n[year==1990]) # %>% 
+  mutate(grow = (n *100 /lag(n)) - 100)
+df$grow[df$year == 1990] <- 0
+
+ylim.prim <- c(0,600)   # in this example, precipitation
+ylim.sec <- c(-30, 45)    # in this example, temperature
+
+b <- diff(ylim.prim)/diff(ylim.sec)
+a <- ylim.prim[1] - (b*ylim.sec[1]) # there was a bug here
+
+ggplot(df,aes(x=year)) + 
+  geom_col(aes(y = n), fill = "grey") +
+  geom_hline(yintercept = a + 0*b, linetype = "dashed",  color = "blue") +
+
+  #geom_line(aes(y = a + grow*b), size = 1, color = "blue") +
+  ggalt::geom_xspline(aes(y = a + grow*b), size = 1, color = "blue",spline_shape=-0.6) +
+  geom_point(aes(y = a + grow*b), colour="black",pch=21, size=2) +
+  scale_y_continuous(sec.axis = sec_axis(~ (. - a)/b, name = "Growth rate",
+                     labels = function(b) { paste0(b, "%")})) + 
+  
+  scale_x_continuous(
+        labels = as.character(seq(min(df$year), max(df$year), by = 1)), 
+        breaks = seq(min(df$year), max(df$year), by = 1), 
+        expand=c(0,0)
+    ) +
+   facet_wrap(~field, nrow = 3) +
+    theme_bw() +
+  theme(axis.title.y = element_text(color = "grey")) +
+  theme(axis.line.y.right = element_line(color = "blue"), 
+        axis.ticks.y.right = element_line(color = "blue"),
+        #axis.text.y.right = element_text(color = "blue"), 
+        axis.title.y.right = element_text(color = "blue", vjust=3)) + 
+  labs(y = "Number of papers", subtitle = "для года n точкой отсчета будет являться n-1 год, а не 1990 как на графике (А)", title = "(Б) Число статей + их прирост от года к году") +
+  theme(legend.position = "none",
+        legend.justification ='left') + 
+  theme(axis.title.x = element_blank(),
+        panel.grid = element_blank()) +
+  theme(strip.background = element_rect(fill = NA))+
+  theme(strip.text = element_text(colour = 'black')) +
+  theme(strip.text = element_text(size = 7)) +
+  theme(axis.text.x = element_text(size = 6, angle = 90, vjust=0.5)) +
+  theme(axis.text.y = element_text(size = 8)) +
+  theme(legend.title= element_blank())
+
+```
+
+#### (2)	График динамики по областям. Отдельно график, на котором тренд увеличивающийся. Отдельно, на котором уменьшающийся тренд. Отдельно в долях от всех публикаций за год и отдельно в статьях. 
+
+
+```{r, fig.dim = c(8.8, 5)}
+data %>% distinct(UT, .keep_all = TRUE) %>% select(year,research_areas,field) %>% 
+  
+  ## разворачиваем research_areas
+  separate_rows(research_areas, sep=";") %>% 
+  mutate(research_areas = str_trim(research_areas, "both")) %>% 
+  
+  group_by(research_areas) %>% mutate(research_areas = case_when(n() < 600 ~ "OTHER AREAS",
+                                                                 TRUE ~ research_areas)) %>% ungroup() %>% 
+  group_by(year, research_areas) %>% count() %>% ungroup() %>% 
+  group_by(year) %>% 
+  mutate(perc = n / sum(n)) %>% 
+
+  ggplot(aes(x=year, y=perc, fill=research_areas)) + 
+    geom_area(alpha=0.8 , size=0.5, colour="black") +
+    scale_x_continuous(
+        labels = as.character(seq(min(df$year), max(df$year), by = 1)), 
+        breaks = seq(min(df$year), max(df$year), by = 1), 
+        expand=c(0,0)
+    ) +
+    scale_y_continuous(labels=scales::percent) +
+  labs(title = "Все области сразу, без разделения на ['SSCI'], ['AHCI'] и ['SSCI', 'AHCI']") +
+  theme_bw() +
+  scale_fill_brewer(palette = "Paired") +
+  theme(legend.position = "right",
+        legend.justification ='left') + 
+  theme(panel.grid = element_blank(),
+        panel.grid.major.y = element_line(size=0.1, color = "grey70", linetype = "solid")) +
+  theme(strip.background = element_rect(fill = NA),
+        strip.text = element_text(colour = 'black',size = 7)) +
+  theme(axis.title = element_blank(),
+        legend.title= element_blank()) +
+  theme(axis.text.x = element_text(size = 6, angle = 90, vjust=0.5),
+        axis.text.y = element_text(size = 8)) 
+```
+
+
+```{r, fig.dim = c(8.8, 8)}
+df <- data %>% distinct(UT, .keep_all = TRUE) %>% select(year,research_areas,field) %>% 
+  
+  ## разворачиваем research_areas
+  separate_rows(research_areas, sep=";") %>% 
+  mutate(research_areas = str_trim(research_areas, "both")) %>% 
+  
+  filter(field == "['SSCI']") %>% 
+  
+  group_by(research_areas) %>% mutate(research_areas = case_when(n() < 500 ~ "Other",
+                                                                 TRUE ~ research_areas)) %>% ungroup() %>% 
+
+  group_by(year, research_areas) %>% count() %>% ungroup() %>% 
+  group_by(year) %>% 
+  mutate(perc = n / sum(n))
+
+df2 <- data %>% distinct(UT, .keep_all = TRUE) %>% select(year,research_areas,field) %>% 
+  
+  ## разворачиваем research_areas
+  separate_rows(research_areas, sep=";") %>% 
+  mutate(research_areas = str_trim(research_areas, "both")) %>% 
+  
+  filter(field == "['AHCI']") %>% 
+  
+  group_by(research_areas) %>% mutate(research_areas = case_when(n() < 500 ~ "Other",
+                                                                 TRUE ~ research_areas)) %>% ungroup() %>% 
+  group_by(year, research_areas) %>% count() %>% ungroup() %>% 
+  group_by(year) %>% 
+  mutate(perc = n / sum(n))
+
+
+df3 <- data %>% distinct(UT, .keep_all = TRUE) %>% select(year,research_areas,field) %>% 
+  
+  ## разворачиваем research_areas
+  separate_rows(research_areas, sep=";") %>% 
+  mutate(research_areas = str_trim(research_areas, "both")) %>% 
+  
+  filter(field == "['SSCI', 'AHCI']") %>% 
+  
+  group_by(research_areas) %>% mutate(research_areas = case_when(n() < 150 ~ "Other",
+                                                                 TRUE ~ research_areas)) %>% ungroup() %>% 
+  group_by(year, research_areas) %>% count() %>% ungroup() %>% 
+  group_by(year) %>% 
+  mutate(perc = n / sum(n))
+
+p1a <- ggplot(df, aes(x=year, y=perc, fill=research_areas)) + 
+  geom_col(size=0.3, colour="white") +
+    scale_y_continuous(labels=scales::percent) +
+          labs(fill = "['SSCI']")+
+    theme_bw() +
+  scale_fill_brewer(palette = "Paired") +
+  theme(panel.grid = element_blank(),
+        panel.grid.major.y = element_line(size=0.1, color = "grey70", linetype = "solid")) +
+  theme(strip.background = element_rect(fill = NA),
+        strip.text = element_text(colour = 'black',size = 7)) +
+  theme(axis.title = element_blank()) +
+  theme(axis.text.x = element_text(size = 6, angle = 0, vjust=0.5),
+        axis.text.y = element_text(size = 8)) 
+
+p1b <- ggplot(df, aes(x=year, y=n, fill=research_areas)) + 
+  geom_col(size=0.3, colour="white") +
+  theme_bw() +
+  scale_fill_brewer(palette = "Paired") +
+  labs(title = "['SSCI'] areas",
+       subtitle = "Кол-во статей и доля") +
+  theme(panel.grid = element_blank(),
+        panel.grid.major.y = element_line(size=0.1, color = "grey70", linetype = "solid")) +
+  theme(strip.background = element_rect(fill = NA),
+        strip.text = element_text(colour = 'black',size = 7)) +
+  theme(axis.title = element_blank(),
+        legend.position = "none") +
+  theme(axis.text.x = element_text(size = 6, angle = 0, vjust=0.5),
+        axis.text.y = element_text(size = 8)) 
+
+p1 <- (p1b + p1a) 
+
+
+p2a <- ggplot(df2, aes(x=year, y=perc, fill=research_areas)) + 
+  geom_col(size=0.3, colour="white") +
+    scale_y_continuous(labels=scales::percent) +
+        labs(fill = "['AHCI']")+
+    theme_bw() +
+  scale_fill_brewer(palette = "Paired") +
+  theme(panel.grid = element_blank(),
+        panel.grid.major.y = element_line(size=0.1, color = "grey70", linetype = "solid")) +
+  theme(strip.background = element_rect(fill = NA),
+        strip.text = element_text(colour = 'black',size = 7)) +
+  theme(axis.title = element_blank()) +
+  theme(axis.text.x = element_text(size = 6, angle = 0, vjust=0.5),
+        axis.text.y = element_text(size = 8)) 
+
+p2b <- ggplot(df2, aes(x=year, y=n, fill=research_areas)) + 
+  geom_col(size=0.3, colour="white") +
+  theme_bw() +
+  scale_fill_brewer(palette = "Paired") +
+    labs(title = "['AHCI'] areas",
+       subtitle = "Кол-во статей и доля") +
+  theme(panel.grid = element_blank(),
+        panel.grid.major.y = element_line(size=0.1, color = "grey70", linetype = "solid")) +
+  theme(strip.background = element_rect(fill = NA),
+        strip.text = element_text(colour = 'black',size = 7)) +
+  theme(axis.title = element_blank(),
+        legend.position = "none") +
+  theme(axis.text.x = element_text(size = 6, angle = 0, vjust=0.5),
+        axis.text.y = element_text(size = 8)) 
+
+p2 <- (p2b + p2a) 
+
+
+p3a <- ggplot(df3, aes(x=year, y=perc, fill=research_areas)) + 
+  geom_col(size=0.3, colour="white") +
+    scale_y_continuous(labels=scales::percent) +
+      labs(fill = "['SSCI', 'AHCI']")+
+    theme_bw() +
+  scale_fill_brewer(palette = "Paired") +
+  theme(panel.grid = element_blank(),
+        panel.grid.major.y = element_line(size=0.1, color = "grey70", linetype = "solid")) +
+  theme(strip.background = element_rect(fill = NA),
+        strip.text = element_text(colour = 'black',size = 7)) +
+  theme(axis.title = element_blank()) +
+  theme(axis.text.x = element_text(size = 6, angle = 0, vjust=0.5),
+        axis.text.y = element_text(size = 8)) 
+
+p3b <- ggplot(df3, aes(x=year, y=n, fill=research_areas)) + 
+  geom_col(size=0.3, colour="white") +
+    labs(title = "['SSCI', 'AHCI'] areas",
+       subtitle = "Кол-во статей и доля") +
+  theme_bw() +
+  scale_fill_brewer(palette = "Paired") +
+  theme(panel.grid = element_blank(),
+        panel.grid.major.y = element_line(size=0.1, color = "grey70", linetype = "solid")) +
+  theme(strip.background = element_rect(fill = NA),
+        strip.text = element_text(colour = 'black',size = 7)) +
+  theme(axis.title = element_blank(),
+        legend.position = "none") +
+  theme(axis.text.x = element_text(size = 6, angle = 0, vjust=0.5),
+        axis.text.y = element_text(size = 8)) 
+
+p3 <- (p3b + p3a) 
+p1/p2/p3 + plot_layout(guides = "collect") 
+```
+
+#### (2а)	Число статей по областям (15 областей), и их принадлежность к AHCI и SSCI  
+
+```{r, fig.dim = c(7, 5)}
+df <- data %>% distinct(UT, .keep_all = TRUE) %>% #select(UT, research_areas) %>% 
+  ## разворачиваем research_areas
+  separate_rows(research_areas, sep=";") %>% 
+  mutate(research_areas = str_trim(research_areas, "both")) %>% 
+  
+  group_by(year, research_areas, field) %>% count() %>% ungroup() 
+
+
+df %>% ggplot(aes(year, n, fill = field)) +
+
+  geom_col(color="white") +
+  facet_wrap(~research_areas, scales = "free") + 
+
+  theme_bw() +
+  scale_fill_brewer(palette = "Dark2") +
+  theme(legend.position = "top",
+        legend.justification ='left') + 
+  theme(panel.grid = element_blank(),
+        panel.grid.major.y = element_line(size=0.1, color = "grey70", linetype = "solid")) +
+  theme(strip.background = element_rect(fill = NA),
+        strip.text = element_text(colour = 'black',size = 7)) +
+  theme(axis.title = element_blank(),
+        legend.title= element_blank()) +
+  theme(axis.text.x = element_text(size = 6, angle = 0, vjust=0.5),
+        axis.text.y = element_text(size = 8)) 
+
+```
+
+#### (3)	График динамики по регионам по годам (регионы, возможно надо перепроверить классификацию). В числах и долях. 
+
+```{r, fig.dim = c(10, 4)}
+df <- data %>% distinct(UT, .keep_all = TRUE) %>% #select(year,region,field) %>% 
+  filter(!is.na(region)) %>% 
+
+  group_by(year, region) %>% count() %>% ungroup() %>% 
+  group_by(year) %>% 
+  mutate(perc = n / sum(n))
+
+p1a <- ggplot(df, aes(x=year, y=perc, fill=region)) + 
+    geom_area(alpha=0.8 , size=0.5, colour="black") +
+  scale_y_continuous(labels=scales::percent) +
+  theme_bw() +
+  scale_fill_brewer(palette = "Paired") +
+  
+  theme(panel.grid = element_blank(),
+        panel.grid.major.y = element_line(size=0.1, color = "grey70", linetype = "solid")) +
+  theme(strip.background = element_rect(fill = NA),
+        strip.text = element_text(colour = 'black',size = 7)) +
+  theme(axis.title = element_blank(),
+        legend.position = 'none',
+        legend.title= element_blank()) +
+  theme(axis.text.x = element_text(size = 6, angle = 0, vjust=0.5),
+        axis.text.y = element_text(size = 8)) 
+
+# ggplot(df, aes(x=year, y=n, fill=region)) + 
+#   geom_col(alpha=0.6 , size=1, colour="black") +
+#    theme(legend.position = "bottom")
+
+p1b <-ggplot(df, aes(x=year, y=n, color=region, group = region)) + 
+  ggalt::geom_xspline(alpha=0.8 , size=1, spline_shape=-0.6) +
+  #geom_point(alpha=0.6 , size=2) +
+  #geom_point(aes(fill= region), alpha=0.6 , size=2, colour="white",pch=21) +
+  theme_bw() +
+  scale_color_brewer(palette = "Paired") +
+  guides(color=guide_legend(override.aes = list(size=5))) + 
+  theme(panel.grid = element_blank(),
+        panel.grid.major.y = element_line(size=0.1, color = "grey70", linetype = "solid")) +
+  theme(strip.background = element_rect(fill = NA),
+        strip.text = element_text(colour = 'black',size = 7)) +
+  theme(axis.title = element_blank(),
+        legend.title= element_blank()) +
+  theme(axis.text.x = element_text(size = 6, angle = 0, vjust=0.5),
+        axis.text.y = element_text(size = 8)) 
+
+(p1a + p1b) + plot_layout(guides = "collect") + plot_annotation(title = "Доля и кол-во статей по годам")
+```
+
+#### (4)	Специализация регионов. На каких областях специализируются отдельные регионы. Просто серия графиков для каждого региона с горизонтальной гистограммой-области (15 областей наших), показана доля.
+
+Убираем `Africa`, `Americas`, `Oceania`
+
+```{r, fig.dim = c(8, 4)}
+
+df2 <- data %>% distinct(UT, .keep_all = TRUE) %>%
+  filter(region != "Africa"& region != "Americas" & region != "Oceania") %>% 
+  
+  ## разворачиваем research_areas
+  separate_rows(research_areas, sep=";") %>% 
+  mutate(research_areas = str_trim(research_areas, "both")) %>% 
+  
+  group_by(research_areas) %>% mutate(research_areas = case_when(n() < 800 ~ "Other",
+                                                                 TRUE ~ research_areas)) %>% ungroup() %>% 
+  
+  group_by(research_areas,region) %>% count() %>% ungroup() %>% 
+  group_by(region) %>% 
+  mutate(perc = n / sum(n))
+
+ggplot(df2, aes(x=region, y=perc, fill=research_areas)) + 
+    geom_col(alpha=0.6 , size=0.4, colour="black") +
+    coord_flip() +
+    scale_y_continuous(labels=scales::percent) +
+  theme_bw() +
+  scale_fill_brewer(palette = "Paired") +
+  
+  theme(panel.grid = element_blank(),
+        panel.grid.major.y = element_line(size=0.1, color = "grey70", linetype = "solid")) +
+  theme(strip.background = element_rect(fill = NA),
+        strip.text = element_text(colour = 'black',size = 7)) +
+  theme(axis.title = element_blank(),
+        legend.position = 'right',
+        legend.title= element_blank()) + 
+  labs(title = "Научная специализация регионов (1990-2020)")
+```
+
+
+```{r, fig.dim = c(8, 7)}
+df <- data %>% distinct(UT, .keep_all = TRUE) %>%
+  filter(region != "Africa"& region != "Americas" & region != "Oceania") %>% 
+ 
+  ## разворачиваем research_areas
+  separate_rows(research_areas, sep=";") %>% 
+  mutate(research_areas = str_trim(research_areas, "both")) %>% 
+  
+  group_by(research_areas) %>% mutate(research_areas = case_when(n() < 800 ~ "Other",
+                                                                 TRUE ~ research_areas)) %>% ungroup() %>% 
+  
+  group_by(year, research_areas,region) %>% count() %>% ungroup() %>% 
+  group_by(year,region) %>% 
+  mutate(perc = n / sum(n))
+
+ggplot(df, aes(x=year, y=perc, fill=research_areas)) + 
+    geom_col(alpha=0.6 , size=0.2, colour="black") +
+    facet_wrap(~region, nrow = 4) +
+    scale_y_continuous(labels=scales::percent) +
+  theme_bw() +
+  scale_fill_brewer(palette = "Paired") +
+  
+  theme(panel.grid = element_blank(),
+        panel.grid.major.y = element_line(size=0.1, color = "grey70", linetype = "solid")) +
+  theme(strip.background = element_rect(fill = NA),
+        strip.text = element_text(colour = 'black',size = 7)) +
+  theme(axis.title = element_blank(),
+        legend.position = 'right',
+        legend.title= element_blank()) +
+  theme(axis.text.x = element_text(size = 6, angle = 0, vjust=0.5),
+        axis.text.y = element_text(size = 8)) + 
+  labs(title = "Научная специализация регионов: динамика по годам")
+```
+
+
+#### (5)	Специализация областей. И наоборот: это один график с горизонтальной гистограммой-области (15 областей наших), показана доля регионов для области.
+
+```{r, fig.dim = c(9, 4)}
+
+plot_order <- data %>% distinct(UT, .keep_all = TRUE) %>%
+  filter(region != "Africa"& region != "Americas" & region != "Oceania") %>% 
+  separate_rows(research_areas, sep=";") %>% 
+  mutate(research_areas = str_trim(research_areas, "both")) %>% 
+  count(research_areas, region) %>%
+  group_by(research_areas) %>%
+  mutate(prop = prop.table(n)) %>%
+  filter(region == "Russia") %>%
+  arrange(desc(prop))
+
+lvls <- as.character(plot_order$research_areas)
+
+df <- data %>% distinct(UT, .keep_all = TRUE) %>%
+  filter(region != "Africa"& region != "Americas" & region != "Oceania") %>% 
+  
+  ## разворачиваем research_areas
+  separate_rows(research_areas, sep=";") %>% 
+  mutate(research_areas = str_trim(research_areas, "both")) %>% 
+  # 
+  # group_by(research_areas) %>% mutate(research_areas = case_when(n() < 800 ~ "Other",
+  #                                                                TRUE ~ research_areas)) %>% ungroup() %>% 
+  
+  group_by(research_areas,region) %>% count() %>% ungroup() %>% 
+  group_by(research_areas) %>% 
+  mutate(perc = n / sum(n))  %>% 
+   mutate(research_areas = factor(research_areas, levels = lvls))
+
+p1 <- ggplot(df,aes(x=research_areas, y=perc, fill=region)) + 
+    geom_col(alpha=0.6 , size=0.2, colour="black") +
+    coord_flip() +
+      scale_y_continuous(labels=scales::percent) +
+    guides(fill = guide_legend(reverse=T)) +
+  theme_bw() +
+  scale_fill_brewer(palette = "Paired") +
+  theme(panel.grid = element_blank(),
+        panel.grid.major.y = element_line(size=0.1, color = "grey70", linetype = "solid")) +
+  theme(strip.background = element_rect(fill = NA),
+        strip.text = element_text(colour = 'black',size = 7)) +
+  theme(axis.title = element_blank(),
+        legend.position = 'bottom',
+        legend.title= element_blank(),
+        legend.text = element_text(size = 7)) +
+  labs(title = "Вклад регионов в область",subtitle = "(1990-2020)")
+
+p2 <- ggplot(df,aes(x=research_areas, y=n)) + 
+    geom_col(size=0.2, fill = "grey56", colour="grey56") +
+    coord_flip() +
+  theme_bw() +
+  scale_fill_brewer(palette = "Paired") +
+  theme(panel.grid = element_blank(),
+        panel.grid.major.x = element_line(size=0.1, color = "grey70", linetype = "solid")) +
+  theme(strip.background = element_rect(fill = NA),
+        strip.text = element_text(colour = 'black',size = 7)) +
+  theme(axis.title = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        legend.title= element_blank()) +
+  labs(title = "Общее кол-во статей в области", subtitle = "(1990-2020)")
+
+p1 + p2 
+```
+
+#### (6)	Страны и динамика – это уже делал Сергей.
+
+#### (7)	Страны и организации 1. Можно взять 15 стран с наибольшим вкладом. И сделать таблицы: количество организаций в периоды (наши 3 периода), интересно также увидеть количество новых организаций в каждом периоде (как бы прирост).
+
+Нет перекодировки стрна
+
+```{r}
+df2 <- data %>% distinct(UT, .keep_all = TRUE) %>%
+  mutate(year_group = case_when(year >= 1990 & year <= 2000 ~ "1990-2000",
+                                year >= 2001 & year <= 2010 ~ "2001-2010",
+                                year >= 2011 & year <= 2020 ~ "2011-2020",
+                          TRUE ~ as.character(year))) %>% 
+  #mutate(year_group = factor(year_group, levels = c("1990-2000", "2001-2010","2011-2020"))) %>% 
+  filter(!is.na(organisation_full)) %>%   filter(!is.na(country)) %>% 
+  group_by(country, year_group) %>% summarise(count=length(unique(organisation_full))) %>% 
+  pivot_wider(values_from = "count", names_from = "year_group") %>% 
+  mutate(`growth_to_first_period(%)` = ((`2001-2010` - `1990-2000`)*100) / `1990-2000`,
+         `growth_to_first_period(%)`= round(`growth_to_first_period(%)`, digits = 1),
+         `growth_to_sec_period(%)` = ((`2011-2020` - `2001-2010`)*100) / `2001-2010`,
+         `growth_to_sec_period(%)`= round(`growth_to_sec_period(%)`, digits = 1))
+df2 <- df2 %>% select(country, `1990-2000`,`2001-2010`,`growth_to_first_period(%)`, `2011-2020`,`growth_to_sec_period(%)`) %>% arrange(desc(`2011-2020`))
+
+#options(digits = 1)
+df2 %>% 
+datatable(rownames = FALSE, options = list(pageLength = 10))
+```
+
+#### (8)	Страны и организации 2. Можно взять 15 стран с наибольшим вкладом. И сделать таблицы как ниже, но только с most contributing countries и most contributing institutions но для три периода.
+
+
+#### (9)	Организации и динамика их вклада. Взять наш топ организаций и показать, как по периодам (у нас их три) распределяются статьи.
+
+
+## IMPACT OF PIBLICATIONS
+
+#### (1)	Средние значения показателей импакта (MNSC, средняя цитируемость на статью – это все разные графики) по годам для регионов.
+
+#### (2)	Страны и динамика их цитируемости. Таблица с основными странами, разделение на 3 периода и следующие показатели в каждом периоде показать: кол-во публикаций, MNSC, средняя цитируемость на статью.
+
+#### (3)	Средние значения показателей вхождения в топ по годам для регионов на отдельных графиках – доли статей в топе 1, 10 и 25. Три графика – линии это для регионов.
+
+#### (4)	Страны и динамика их импакта по вхождению в топ. Таблица с основными странами, разделение на 3 периода и следующие показатели в каждом периоде показать: кол-во публикаций, кол-во статей в топе 1, 10 и 25 (в скобках доли статей в топе).
+
+#### (5)	Средние значения показателей по группам институций в динамике: 5,10,20 лучших, все остальные. Показатели MNSC, средняя цитируемость на статью. Линиями на графиках, а группы – это 5,10,20 лучших.
+
+#### (6)	Взять только 25% самых цитируемых публикаций в SSCI и в AHCI по отдельности в каждый из годов. График с долями регионов в самом цитируемом аутпуте разными линиями. Фракционализировать по странам. Подумать, как наглядно такое показать для стран?
+
+#### (7)	Взять только статьи в журналах 1 квартиля в каждый из год (только с 2000 года период). Показать доли регионов по годам разными линиями. Фракционализировать по странам. Подумать, как наглядно такое показать для стран?
+
+#### (8)	Это пока не нужно: страны и выше или ниже мирового значения цитирования, институции и выше или ниже мирового значения цитирования.
+
+
