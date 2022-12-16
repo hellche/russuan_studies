@@ -72,6 +72,7 @@ library(kableExtra)
 library(DT)
 ## скользящее среднее
 library(tidyquant)
+library(plotly)
 ```
 
 ```{r functions}
@@ -534,11 +535,13 @@ p1/p2/p3 + plot_layout(guides = "collect")
 ```
 
 
-##### (2с) Динамика доли 
+##### (2с) Динамика доли {.tabset .tabset-fade .tabset-pills}
 Это то же самое что доли из (2b), просто наглядно в динамике.
 Из графиков ниже мы видим, что в SSCI основное это политология  и экономика, доли ведут себя очень стабильно, кроме всплеска доли экономики в конце 90%. В AHCI видна смена подобластей - доля Арт и литературы со временем снижается, доля истории и философии наоборот растет. В комбо SSCI + AHCI снижается Area Stud.
 
-```{r,fig.dim = c(8, 16)}
+###### На графиках видны значимые (не в статист смысле) изменения тенденций (фиксированная ось Y) 
+
+```{r,fig.dim = c(5.5,4)}
 
 df <- data %>% distinct(UT, .keep_all = TRUE) %>% select(year,research_areas,field) %>% 
   
@@ -654,7 +657,133 @@ p3 <- df3 %>% mutate(perc=perc*100) %>%
   theme(axis.text.x = element_text(size = 7, angle = 90, vjust=0.5),
         axis.text.y = element_text(size = 8)) 
 
-p1/p2/p3 
+p1
+p2
+p3 
+```
+
+
+###### На графиках видны микро изменения тененций (свободная ось Y) 
+
+```{r,fig.dim = c(5.5,4)}
+
+df <- data %>% distinct(UT, .keep_all = TRUE) %>% select(year,research_areas,field) %>% 
+  
+  ## разворачиваем research_areas
+  separate_rows(research_areas, sep=";") %>% 
+  mutate(research_areas = str_trim(research_areas, "both")) %>% 
+  
+  filter(field == "['SSCI']") %>% 
+  
+  group_by(research_areas) %>% mutate(research_areas = case_when(n() < 500 ~ "Other",
+                                                                 TRUE ~ research_areas)) %>% ungroup() %>% 
+
+  group_by(year, research_areas) %>% count() %>% ungroup() %>% 
+  group_by(year) %>% 
+  mutate(perc = n / sum(n))
+
+df2 <- data %>% distinct(UT, .keep_all = TRUE) %>% select(year,research_areas,field) %>% 
+  
+  ## разворачиваем research_areas
+  separate_rows(research_areas, sep=";") %>% 
+  mutate(research_areas = str_trim(research_areas, "both")) %>% 
+  
+  filter(field == "['AHCI']") %>% 
+  
+  group_by(research_areas) %>% mutate(research_areas = case_when(n() < 500 ~ "Other",
+                                                                 TRUE ~ research_areas)) %>% ungroup() %>% 
+  group_by(year, research_areas) %>% count() %>% ungroup() %>% 
+  group_by(year) %>% 
+  mutate(perc = n / sum(n))
+
+
+df3 <- data %>% distinct(UT, .keep_all = TRUE) %>% select(year,research_areas,field) %>% 
+  
+  ## разворачиваем research_areas
+  separate_rows(research_areas, sep=";") %>% 
+  mutate(research_areas = str_trim(research_areas, "both")) %>% 
+  
+  filter(field == "['SSCI', 'AHCI']") %>% 
+  
+  group_by(research_areas) %>% mutate(research_areas = case_when(n() < 150 ~ "Other",
+                                                                 TRUE ~ research_areas)) %>% ungroup() %>% 
+  group_by(year, research_areas) %>% count() %>% ungroup() %>% 
+  group_by(year) %>% 
+  mutate(perc = n / sum(n))
+
+
+p1 <- df %>% mutate(perc=perc*100) %>% 
+  ggplot(aes(x=year, perc, color=research_areas, group = research_areas)) + 
+  geom_line(alpha = 0.3) +
+  geom_point(alpha = 0.2, size=1) +
+  geom_ma(ma_fun = SMA, n = 3, linetype = "solid") +
+  scale_y_continuous(labels = function(x) paste0(x, "%")) +
+  facet_wrap(~research_areas, ncol = 3, scales ="free") +
+  labs(title = "Динамика внутри ['SSCI'] areas",
+      subtitle = "светалая линия - реальные значения; темная линия - скользящее среднее (шаг = 3 года)") +
+  theme_bw() +
+  scale_color_brewer(palette = "Paired") +
+  guides(color=guide_legend(override.aes = list(size=5))) + 
+  theme(panel.grid = element_blank(),
+        panel.grid.major.x = element_line(size=0.1, color = "grey70", linetype = "solid"),
+        panel.grid.major.y = element_line(size=0.1, color = "grey70", linetype = "solid")) +
+  theme(strip.background = element_rect(fill = NA),
+        strip.text = element_text(colour = 'black',size = 8)) +
+  theme(axis.title = element_blank(),
+        legend.position  = "none",
+        legend.title= element_blank()) +
+  theme(axis.text.x = element_text(size = 7, angle = 90, vjust=0.5),
+        axis.text.y = element_text(size = 8)) 
+
+p2 <- df2 %>% mutate(perc=perc*100) %>% 
+  ggplot(aes(x=year, perc, color=research_areas, group = research_areas)) + 
+  geom_line(alpha = 0.3) +
+  geom_point(alpha = 0.2, size=1) +
+  geom_ma(ma_fun = SMA, n = 3, linetype = "solid") +
+  scale_y_continuous(labels = function(x) paste0(x, "%")) +
+  facet_wrap(~research_areas,ncol = 3,scales ="free") +
+  labs(title = "Динамика внутри ['AHCI'] areas",
+      subtitle = "светалая линия - реальные значения; темная линия - скользящее среднее (шаг = 3 года)") +
+  theme_bw() +
+  scale_color_brewer(palette = "Paired") +
+  guides(color=guide_legend(override.aes = list(size=5))) + 
+  theme(panel.grid = element_blank(),
+        panel.grid.major.x = element_line(size=0.1, color = "grey70", linetype = "solid"),
+        panel.grid.major.y = element_line(size=0.1, color = "grey70", linetype = "solid")) +
+  theme(strip.background = element_rect(fill = NA),
+        strip.text = element_text(colour = 'black',size = 8)) +
+  theme(axis.title = element_blank(),
+        legend.position  = "none",
+        legend.title= element_blank()) +
+  theme(axis.text.x = element_text(size = 7, angle = 90, vjust=0.5),
+        axis.text.y = element_text(size = 8)) 
+
+p3 <- df3 %>% mutate(perc=perc*100) %>% 
+  ggplot(aes(x=year, perc, color=research_areas, group = research_areas)) + 
+  geom_line(alpha = 0.3) +
+  geom_point(alpha = 0.2, size=1) +
+  geom_ma(ma_fun = SMA, n = 3, linetype = "solid") +
+  scale_y_continuous(labels = function(x) paste0(x, "%")) +
+  facet_wrap(~research_areas, ncol = 3, scales ="free") +
+  labs(title = "Динамика внутри ['SSCI', 'AHCI'] areas",
+      subtitle = "светалая линия - реальные значения; темная линия - скользящее среднее (шаг = 3 года)") +
+  theme_bw() +
+  scale_color_brewer(palette = "Paired") +
+  guides(color=guide_legend(override.aes = list(size=5))) + 
+  theme(panel.grid = element_blank(),
+        panel.grid.major.x = element_line(size=0.1, color = "grey70", linetype = "solid"),
+        panel.grid.major.y = element_line(size=0.1, color = "grey70", linetype = "solid")) +
+  theme(strip.background = element_rect(fill = NA),
+        strip.text = element_text(colour = 'black',size = 8)) +
+  theme(axis.title = element_blank(),
+        legend.position  = "none",
+        legend.title= element_blank()) +
+  theme(axis.text.x = element_text(size = 7, angle = 90, vjust=0.5),
+        axis.text.y = element_text(size = 8)) 
+
+p1
+p2
+p3 
 ```
 
 ##### (2d) Число статей по областям (15 областей), и их принадлежность к AHCI и SSCI
@@ -690,7 +819,7 @@ df %>% ggplot(aes(year, n, fill = field)) +
 
 ```
 
-#### (3) График динамики по регионам по годам (регионы, возможно надо перепроверить классификацию). В числах и долях.
+#### (3) График динамики по регионам по годам (регионы, возможно надо перепроверить классификацию). В числах и долях.{.tabset .tabset-fade .tabset-pills}
 
 Основной массив текстов раньше писался в США (рис А). Но доля США стабильно падала, доля России и Европы и Азии растет (рис С). Для США падает не потому что они стали писать меньше статей, они пишут столько же (рис. В). Это просто Россия и Европа в штуках стали больше писать. 
 
@@ -743,6 +872,8 @@ p1b <-ggplot(df, aes(x=year, y=n, color=region, group = region)) +
 (p1a + p1b) + plot_layout(guides = "collect") #+ plot_annotation(title = "А.Доля и кол-во статей по годам")
 ```
 
+##### Скользящее среднее + релальные значения
+
 ```{r}
 
 df <- data %>% distinct(UT, .keep_all = TRUE) %>% #select(year,region,field) %>% 
@@ -774,10 +905,50 @@ df %>% mutate(perc=perc*100) %>%
         legend.title= element_blank()) +
   theme(axis.text.x = element_text(size = 7, angle = 90, vjust=0.5),
         axis.text.y = element_text(size = 8)) 
+
+```
+
+##### Реальные (инерактивный) 
+
+```{r}
+
+df <- data %>% distinct(UT, .keep_all = TRUE) %>% #select(year,region,field) %>% 
+  filter(!is.na(region)) %>% 
+
+  group_by(year, region) %>% count() %>% ungroup() %>% 
+  group_by(year) %>% 
+  mutate(perc = n / sum(n))
+
+p <- df %>% mutate(perc=round(perc*100, digits=2)) %>% 
+  ggplot(aes(x=year, perc, color=region, group = region)) + 
+  geom_line(alpha = 0.6) +
+  geom_point(alpha = 0.6, size=1) +
+  #geom_ma(ma_fun = SMA, n = 3, linetype = "solid") +
+  scale_y_continuous(labels = function(x) paste0(x, "%")) +
+  facet_wrap(~region, ncol = 3) +
+  labs(title = "Можно посмотреть точные цифры у графика реальных занчений",
+      subtitle = "светалая линия - реальные значения; темная линия - скользящее среднее (шаг = 3 года)") +
+  theme_bw() +
+  scale_color_brewer(palette = "Paired") +
+  guides(color=guide_legend(override.aes = list(size=5))) + 
+  theme(panel.grid = element_blank()#,
+        #panel.grid.major.x = element_line(size=0.1, color = "grey70", linetype = "solid"),
+        #panel.grid.major.y = element_line(size=0.1, color = "grey70", linetype = "solid")
+        
+        ) +
+  theme(strip.background = element_rect(fill = NA),
+        strip.text = element_text(colour = 'black',size = 8)) +
+  theme(axis.title = element_blank(),
+        legend.position  = "none",
+        legend.title= element_blank()) +
+  theme(axis.text.x = element_text(size = 7, angle = 90, vjust=0.5),
+        axis.text.y = element_text(size = 8)) 
+
+ggplotly(p)
 ```
 
 
-#### (4) Специализация регионов. На каких областях специализируются отдельные регионы. Просто серия графиков для каждого региона с горизонтальной гистограммой-области (15 областей наших), показана доля. 
+#### (4) Специализация регионов. На каких областях специализируются отдельные регионы. Просто серия графиков для каждого региона с горизонтальной гистограммой-области (15 областей наших), показана доля. {.tabset .tabset-fade .tabset-pills}
 
 **Важно:** Убираем `Africa`, `Americas`, `Oceania`
 
@@ -800,12 +971,12 @@ df2 <- data %>% distinct(UT, .keep_all = TRUE) %>%
   
   group_by(research_areas,region) %>% count() %>% ungroup() %>% 
   group_by(region) %>% 
-  mutate(perc = n / sum(n))
+  mutate(perc = round((100 * n / sum(n)), 2))
 
-ggplot(df2, aes(x=region, y=perc, fill=research_areas)) + 
+p <- ggplot(df2, aes(x=region, y=perc, fill=research_areas)) + 
     geom_col(alpha=0.6 , size=0.4, colour="black") +
     coord_flip() +
-    scale_y_continuous(labels=scales::percent) +
+    #scale_y_continuous(labels=scales::percent) +
   theme_bw() +
   scale_fill_brewer(palette = "Paired") +
   
@@ -817,6 +988,8 @@ ggplot(df2, aes(x=region, y=perc, fill=research_areas)) +
         legend.position = 'right',
         legend.title= element_blank()) + 
   labs(title = "А.Научная специализация регионов (1990-2020)")
+
+ggplotly(p)
 ```
 
 ```{r, fig.dim = c(8, 7)}
@@ -853,7 +1026,9 @@ ggplot(df, aes(x=year, y=perc, fill=research_areas)) +
   labs(title = "В.Научная специализация регионов: динамика по годам")
 ```
 
-```{r, fig.dim = c(6, 8)}
+##### Скользящее среднее + релальные значения
+
+```{r, fig.dim = c(10, 5)}
 df <- data %>% distinct(UT, .keep_all = TRUE) %>%
   filter(region != "Africa"& region != "Americas" & region != "Oceania") %>% 
  
@@ -874,9 +1049,9 @@ df %>% mutate(perc=perc*100) %>%
   geom_point(alpha = 0.2, size=0.3) +
   geom_ma(ma_fun = SMA, n = 3, linetype = "solid") +
   scale_y_continuous(labels = function(x) paste0(x, "%")) +
-  facet_grid(research_areas~region, scales = "free") +
+  facet_grid(region~research_areas,labeller = label_wrap_gen(width=10)) +
   labs(title = "С. Динамика доли (тоже самое что и рис В)",
-      subtitle = "светалая линия - реальные значения; скользящее среднее (шаг = 3 года)") +
+      subtitle = "светалая линия - реальные значения; темная линия - скользящее среднее (шаг = 3 года)") +
   theme_dark() +
   #  theme_bw() +
   scale_color_brewer(palette = "Paired") +
@@ -885,15 +1060,62 @@ df %>% mutate(perc=perc*100) %>%
   #       panel.grid.major.x = element_line(size=0.1, color = "grey70", linetype = "solid"),
   #       panel.grid.major.y = element_line(size=0.1, color = "grey70", linetype = "solid")) +
   theme(strip.background = element_rect(fill = NA),
-        strip.text.x = element_text(colour = 'black',size = 8),
-        strip.text.y = element_text(colour = 'black',size = 8, angle=0, hjust = 0)) +
+        strip.text.x = element_text(colour = 'black',size = 8,vjust=0),
+        strip.text.y = element_text(colour = 'black',size = 8)) +
   theme(axis.title = element_blank(),
         legend.position  = "none",
         legend.title= element_blank()) +
-  theme(axis.text.x = element_text(size = 7, angle = 90, vjust=0.5),
+  theme(axis.text.x = element_text(size = 7, angle = 90, vjust=0),
         axis.text.y = element_text(size = 6)) 
 
 ```
+
+##### Реальные (инерактивный) 
+
+```{r, fig.dim = c(10, 5)}
+df <- data %>% distinct(UT, .keep_all = TRUE) %>%
+  filter(region != "Africa"& region != "Americas" & region != "Oceania") %>% 
+ 
+  ## разворачиваем research_areas
+  separate_rows(research_areas, sep=";") %>% 
+  mutate(research_areas = str_trim(research_areas, "both")) %>% 
+  
+  group_by(research_areas) %>% mutate(research_areas = case_when(n() < 800 ~ "Other",
+                                                                 TRUE ~ research_areas)) %>% ungroup() %>% 
+  
+  group_by(year, research_areas,region) %>% count() %>% ungroup() %>% 
+  group_by(year,region) %>% 
+  mutate(perc = n / sum(n))
+
+p <- df %>% mutate(perc=round(perc*100, 2)) %>% 
+  ggplot(aes(x=year, perc, color=research_areas, group = research_areas)) + 
+  geom_line(alpha = 0.6) +
+  geom_point(alpha = 0.2, size=0.6) +
+  geom_ma(ma_fun = SMA, n = 3, linetype = "solid") +
+  scale_y_continuous(labels = function(x) paste0(x, "%")) +
+  facet_grid(region~research_areas,labeller = label_wrap_gen(width=10)) +
+  #labs(title = "График, чтобы смотерть точне цифры на грфике с реальными значениями") +
+  theme_dark() +
+  #  theme_bw() +
+  scale_color_brewer(palette = "Paired") +
+  guides(color=guide_legend(override.aes = list(size=5))) + 
+  # theme(panel.grid = element_blank(),
+  #       panel.grid.major.x = element_line(size=0.1, color = "grey70", linetype = "solid"),
+  #       panel.grid.major.y = element_line(size=0.1, color = "grey70", linetype = "solid")) +
+  theme(strip.background = element_rect(fill = NA),
+        strip.text.x = element_text(colour = 'black',size = 8,vjust=0),
+        strip.text.y = element_text(colour = 'black',size = 8)) +
+  theme(axis.title = element_blank(),
+        legend.position  = "none",
+        legend.title= element_blank()) +
+  theme(axis.text.x = element_text(size = 7, angle = 90, vjust=0),
+        axis.text.y = element_text(size = 6),
+        plot.margin = margin(1, 2, 1, 1, "cm")) 
+#ggplotly(p, height = 350, width=900)
+ggplotly(p)
+```
+
+
 
 #### (5) Специализация областей. И наоборот: это один график с горизонтальной гистограммой-области (15 областей наших), показана доля регионов для области.
 
