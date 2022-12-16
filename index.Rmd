@@ -931,9 +931,9 @@ p <- df %>% mutate(perc=round(perc*100, digits=2)) %>%
   theme_bw() +
   scale_color_brewer(palette = "Paired") +
   guides(color=guide_legend(override.aes = list(size=5))) + 
-  theme(panel.grid = element_blank()#,
-        #panel.grid.major.x = element_line(size=0.1, color = "grey70", linetype = "solid"),
-        #panel.grid.major.y = element_line(size=0.1, color = "grey70", linetype = "solid")
+  theme(panel.grid = element_blank(),
+        panel.grid.major.x = element_line(size=0.1, color = "grey90", linetype = "solid"),
+        panel.grid.major.y = element_line(size=0.1, color = "grey90", linetype = "solid")
         
         ) +
   theme(strip.background = element_rect(fill = NA),
@@ -957,7 +957,7 @@ ggplotly(p)
 На рис В мало что видно, он перерисован и на рис С уже динамика представлена отдельными линиями. Благодаря рис С видим, что скачек доли экономических статей это в основном российский регион. Видим странный скачек Арт публикаций в России в 2005-2006. Видим планомерный рост доли истории у США. Видим странный горб по философии в 2001-2007 в России. Ну и обвал доли публикаций по политологии в России начиная с 2013. Все остальные доли в России, США и Европе кажутся относительно стабильными.
 
 
-```{r, fig.dim = c(8, 4)}
+```{r, fig.dim = c(8, 5)}
 
 df2 <- data %>% distinct(UT, .keep_all = TRUE) %>%
   filter(region != "Africa"& region != "Americas" & region != "Oceania") %>% 
@@ -1121,8 +1121,8 @@ ggplotly(p)
 
 Россия из всех дисциплин серьезный вклад вносит в образование, философию, социологию и урбан (мало наблюдений) - авторы из России участвовали в написании от четверти и более всех публикаций в этих областях.
 
-```{r, fig.dim = c(9, 4)}
-
+```{r, fig.dim = c(10, 4)}
+# fig.dim = c(9, 4)
 plot_order <- data %>% #distinct(UT, .keep_all = TRUE) %>%
   filter(region != "Africa"& region != "Americas" & region != "Oceania") %>% 
   separate_rows(research_areas, sep=";") %>% 
@@ -1147,13 +1147,13 @@ df <- data %>% #distinct(UT, .keep_all = TRUE) %>%
   
   group_by(research_areas,region) %>% count() %>% ungroup() %>% 
   group_by(research_areas) %>% 
-  mutate(perc = n / sum(n))  %>% 
+  mutate(perc = round(100 * n / sum(n), 2))  %>% 
    mutate(research_areas = factor(research_areas, levels = lvls))
 
 p1 <- ggplot(df,aes(x=research_areas, y=perc, fill=region)) + 
     geom_col(alpha=0.6 , size=0.2, colour="black") +
     coord_flip() +
-      scale_y_continuous(labels=scales::percent) +
+    #scale_y_continuous(labels=scales::percent) +
     guides(fill = guide_legend(reverse=T)) +
   theme_bw() +
   scale_fill_brewer(palette = "Paired") +
@@ -1162,10 +1162,12 @@ p1 <- ggplot(df,aes(x=research_areas, y=perc, fill=region)) +
   theme(strip.background = element_rect(fill = NA),
         strip.text = element_text(colour = 'black',size = 7)) +
   theme(axis.title = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
         legend.position = 'bottom',
         legend.title= element_blank(),
-        legend.text = element_text(size = 7)) +
-  labs(title = "Вклад регионов в область",subtitle = "(1990-2020)")
+        legend.text = element_text(size = 7)) #+
+  #labs(title = "Вклад регионов в область (1990-2020)")
 
 p2 <- ggplot(df,aes(x=research_areas, y=n)) + 
     geom_col(size=0.2, fill = "grey56", colour="grey56") +
@@ -1177,12 +1179,48 @@ p2 <- ggplot(df,aes(x=research_areas, y=n)) +
   theme(strip.background = element_rect(fill = NA),
         strip.text = element_text(colour = 'black',size = 7)) +
   theme(axis.title = element_blank(),
-        axis.text.y = element_blank(),
-        axis.ticks.y = element_blank(),
-        legend.title= element_blank()) +
-  labs(title = "Общее кол-во статей в области", subtitle = "(1990-2020)")
+        #axis.text.y = element_blank(),
+        #axis.ticks.y = element_blank(),
+        legend.title= element_blank()) #+
 
-p1 + p2 
+  #labs(title = "Общее кол-во статей в области (1990-2020)")
+
+annotations = list( 
+  list( 
+    x = 0.25,  
+    y = 1.0,  
+    text = paste0('(А) Общее кол-во статей в области',
+                  '<br>',
+                  '<sup>',
+                  '(1990-2020)','</sup>'),
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE 
+  ),  
+  list( 
+    x = 0.75,  
+    y = 1,  
+    text = paste0('(B) Вклад регионов в область',
+                  '<br>',
+                  '<sup>',
+                  '(1990-2020)','</sup>'),
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE 
+  ))
+
+#p1 + p2 
+
+fig1<-ggplotly(p1)
+fig2<-ggplotly(p2)
+
+subplot(style(fig2, showlegend = F),
+        style(fig1, showlegend = T), nrows=1) %>% 
+   layout(annotations = annotations)
 ```
 
 #### (6) Страны и динамика -- это уже делал Сергей.
@@ -1371,10 +1409,10 @@ df <- data %>% distinct(UT, .keep_all = TRUE) %>% #select(year,region,field) %>%
   filter(region != "Africa"& region != "Americas" & region != "Oceania") %>% 
   filter(!is.na(region)) %>% 
   group_by(year,region) %>% 
-  summarise(mean_TC = mean(TC),
-            mean_mncs = mean(mncs)) 
+  summarise(mean_TC = round(mean(TC), 2),
+            mean_mncs = round(mean(mncs), 2)) 
 
-df %>% ggplot(aes(x=year, y=mean_TC, fill=region, group = region)) + 
+p1 <- df %>% ggplot(aes(x=year, y=mean_TC, fill=region, group = region)) + 
   geom_col() +
   facet_wrap(~region, nrow = 1) +
   labs(title = "Среднее число цитирований по ядру (TC)") +
@@ -1396,10 +1434,10 @@ df <- data %>% distinct(UT, .keep_all = TRUE) %>% #select(year,region,field) %>%
   filter(region != "Africa"& region != "Americas" & region != "Oceania") %>% 
   filter(!is.na(region)) %>% 
   group_by(year,region) %>% 
-  summarise(mean_TC = mean(TC),
-            mean_mncs = mean(mncs))
+  summarise(mean_TC = round(mean(TC), 2),
+            mean_mncs = round(mean(mncs), 2)) 
 
-df %>%  
+p2 <- df %>%  
   ggplot(aes(x=year, y=mean_mncs, fill=region, group = region)) + 
   geom_col() +
   facet_wrap(~region, nrow = 1) +
@@ -1422,7 +1460,7 @@ df <- data %>% distinct(UT, .keep_all = TRUE) %>% #select(year,region,field) %>%
   filter(!is.na(region)) %>% 
   mutate(zero_cit = case_when(TC < 1 ~ "zero cit",
                               TRUE ~ "have cit"))  
-df %>%   
+p3 <- df %>%   
   ggplot(aes(x=year, fill=zero_cit)) + 
   geom_bar(position = "fill") +
     scale_y_continuous(labels=scales::percent) +
@@ -1441,6 +1479,10 @@ df %>%
         legend.title= element_blank()) +
   theme(axis.text.x = element_text(size = 7, angle = 0, vjust=0.5),
         axis.text.y = element_text(size = 8)) 
+
+ggplotly(p1)
+ggplotly(p2)
+ggplotly(p3)
 
 ```
 
@@ -1475,12 +1517,15 @@ data %>% #distinct(UT, .keep_all = TRUE) %>%
   formatRound(columns=c(5:10), digits=1)
 ```
 
-#### (3) Средние значения показателей вхождения в топ по годам для регионов на отдельных графиках -- доли статей в топе 1, 10 и 25. Три графика -- линии это для регионов.
+#### (3) Средние значения показателей вхождения в топ по годам для регионов на отдельных графиках -- доли статей в топе 1, 10 и 25. Три графика -- линии это для регионов.{.tabset .tabset-fade .tabset-pills}
 
 **Важно:** чей регион? журнала или институции? убрали Africa, Americas,
 Oceania.
 
-```{r,fig.dim = c(8, 7)}
+
+##### Скользящее среденее + реальные значения
+
+```{r,fig.dim = c(8, 4)}
 df <- data %>% #distinct(UT, .keep_all = TRUE) %>% 
   select(year, region, top_1, top_10, top_25) %>% 
   filter(region != "Africa"& region != "Americas" & region != "Oceania") %>% 
@@ -1498,7 +1543,7 @@ df <- data %>% #distinct(UT, .keep_all = TRUE) %>%
 
 p1 <- df %>% ggplot(aes(x=year, value, color=top_x, group = top_x)) + 
   geom_line(alpha = 0.4) +
-  #geom_point(alpha = 0.4) +
+  geom_point(alpha = 0.3, sixe=0.7) +
   geom_ma(ma_fun = SMA, n = 3, linetype = "solid") +
   # scale_x_continuous(
   #       labels = as.character(seq(min(df$year), max(df$year), by = 1)),
@@ -1522,6 +1567,80 @@ p1 <- df %>% ggplot(aes(x=year, value, color=top_x, group = top_x)) +
   theme(axis.text.x = element_text(size = 7, angle = 45, vjust=0.5),
         axis.text.y = element_text(size = 8)) 
 
+p1
+
+```
+
+##### Реальные (интерактивный)
+
+```{r,fig.dim = c(8, 4)}
+df <- data %>% #distinct(UT, .keep_all = TRUE) %>% 
+  select(year, region, top_1, top_10, top_25) %>% 
+  filter(region != "Africa"& region != "Americas" & region != "Oceania") %>% 
+  filter(!is.na(region)) %>% 
+
+  group_by(year, region) %>% mutate(count = length(top_1)) %>% ungroup() %>% 
+  group_by(year, region, count) %>% summarise(top_1 = sum(top_1),
+                                               top_10 = sum(top_10),
+                                               top_25 = sum(top_25)) %>% ungroup() %>% 
+
+  mutate(top_1_perc = round(100 * top_1 / count, 2),
+         top_10_perc = round(100 * top_10 / count, 2),
+         top_25_perc = round(100 * top_25 / count, 2)) %>% 
+  pivot_longer(-c(year,region, count, top_1, top_10, top_25), names_to = "top_x", values_to = "value") 
+
+p1 <- df %>% ggplot(aes(x=year, value, color=top_x, group = top_x)) + 
+  geom_line(alpha = 0.7) +
+  geom_point(alpha = 0.7,size=0.7) +
+  #geom_ma(ma_fun = SMA, n = 3, linetype = "solid") +
+  # scale_x_continuous(
+  #       labels = as.character(seq(min(df$year), max(df$year), by = 1)),
+  #       breaks = seq(min(df$year), max(df$year), by = 1),
+  #       expand=c(0,0)
+  #   ) +
+  scale_y_continuous(labels = function(x) paste0(x, "%")) +
+  facet_wrap(~region, nrow = 1) +
+  labs(title = "Доля статей, входящих топ",
+      subtitle = "светалая линия - реальные значения; темная линия - скользящее среднее (шаг = 3 года)") +
+  theme_bw() +
+  scale_color_brewer(palette = "Dark2", direction = -1) +
+  guides(color=guide_legend(override.aes = list(size=5))) + 
+  theme(panel.grid = element_blank(),
+        panel.grid.major.y = element_line(size=0.1, color = "grey70", linetype = "solid")) +
+  theme(strip.background = element_rect(fill = NA),
+        strip.text = element_text(colour = 'black',size = 8)) +
+  theme(axis.title = element_blank(),
+        legend.position = "bottom",
+        legend.title= element_blank()) +
+  theme(axis.text.x = element_text(size = 7, angle = 45, vjust=0.5),
+        axis.text.y = element_text(size = 8)
+        )
+
+
+ggplotly(p1) %>% layout(legend = list(orientation = "h",   
+                                      xanchor = "center",  
+                                      x = 0.5,
+                                      y = -0.25))   
+```
+
+</div>
+
+```{r,fig.dim = c(8, 4)}
+
+df <- data %>% #distinct(UT, .keep_all = TRUE) %>% 
+  select(year, region, top_1, top_10, top_25) %>% 
+  filter(region != "Africa"& region != "Americas" & region != "Oceania") %>% 
+  filter(!is.na(region)) %>% 
+
+  group_by(year, region) %>% mutate(count = length(top_1)) %>% ungroup() %>% 
+  group_by(year, region, count) %>% summarise(top_1 = sum(top_1),
+                                               top_10 = sum(top_10),
+                                               top_25 = sum(top_25)) %>% ungroup() %>% 
+
+  mutate(top_1_perc = 100 * top_1 / count,
+         top_10_perc = 100 * top_10 / count,
+         top_25_perc = 100 * top_25 / count) %>% 
+  pivot_longer(-c(year,region, count, top_1, top_10, top_25), names_to = "top_x", values_to = "value")
 
 p2 <- df %>% ggplot(aes(x=year, count)) + 
   geom_col(alpha = 0.4) +
@@ -1538,8 +1657,7 @@ p2 <- df %>% ggplot(aes(x=year, count)) +
   theme(axis.text.x = element_text(size = 7, angle = 45, vjust=0.5),
         axis.text.y = element_text(size = 8)) 
 
-p1/p2
-
+ggplotly(p2)
 ```
 
 #### (4) Страны и динамика их импакта по вхождению в топ. Таблица с основными странами, разделение на 3 периода и следующие показатели в каждом периоде показать: кол-во публикаций, кол-во статей в топе 1, 10 и 25 (в скобках доли статей в топе). {.tabset .tabset-fade .tabset-pills}
