@@ -8,7 +8,7 @@ output:
     self_contained: yes
     smooth_scroll: no
     toc: yes
-    toc_depth: 6
+    toc_depth: 5
     toc_float: no
     toc_position: top
 citecolor: red
@@ -268,7 +268,7 @@ ylim.sec <- c(-30, 45)    # in this example, temperature
 b <- diff(ylim.prim)/diff(ylim.sec)
 a <- ylim.prim[1] - (b*ylim.sec[1]) # there was a bug here
 
-ggplot(df,aes(x=year)) + 
+p <- ggplot(df,aes(x=year)) + 
   geom_col(aes(y = n), fill = "grey") +
   geom_hline(yintercept = a + 0*b, linetype = "dashed",  color = "blue") +
 
@@ -302,16 +302,17 @@ ggplot(df,aes(x=year)) +
   theme(axis.text.y = element_text(size = 8)) +
   theme(legend.title= element_blank())
 
+p
 ```
 
 #### (2) График динамики по областям. Отдельно график, на котором тренд увеличивающийся. Отдельно, на котором уменьшающийся тренд. Отдельно в долях от всех публикаций за год и отдельно в статьях.
 
-##### (2a) Все вместе (без разбивки по fields)
+##### (2a) Все вместе (без разбивки по fields) {.tabset .tabset-fade .tabset-pills}
 
 Из рисунка 2А хорошо видно структуру Рашн стадис. Видно, что по политологии, экономики, истории и литературе написан основной массив всех текстов за 1990-2020. Но динамика считывается тут плохо, посмотрим на 2Б, из которого видно, что История сильно приросла в процентах от всех областей. Так же доля социологии, лингвистики и философии приросли. Доли Арт и литературы снизились. Очень стабильную долю на за 1990-2020 держит только политология (в районе 20%). На самом деле еще экономика, кроме всплеска доли в конце 90-х (может интерес вызван исследованиям кризиса 1998) 
 
 ```{r, fig.dim = c(8.8, 5)}
-data %>% distinct(UT, .keep_all = TRUE) %>% select(year,research_areas,field) %>% 
+p <- data %>% distinct(UT, .keep_all = TRUE) %>% select(year,research_areas,field) %>% 
   
   ## разворачиваем research_areas
   separate_rows(research_areas, sep=";") %>% 
@@ -321,7 +322,7 @@ data %>% distinct(UT, .keep_all = TRUE) %>% select(year,research_areas,field) %>
                                                                  TRUE ~ research_areas)) %>% ungroup() %>% 
   group_by(year, research_areas) %>% count() %>% ungroup() %>% 
   group_by(year) %>% 
-  mutate(perc = n / sum(n)) %>% 
+  mutate(perc = round(100 * n / sum(n), 2)) %>% 
 
   ggplot(aes(x=year, y=perc, fill=research_areas)) + 
     geom_area(alpha=0.8 , size=0.5, colour="black") +
@@ -330,7 +331,7 @@ data %>% distinct(UT, .keep_all = TRUE) %>% select(year,research_areas,field) %>
         breaks = seq(min(df$year), max(df$year), by = 1), 
         expand=c(0,0)
     ) +
-    scale_y_continuous(labels=scales::percent) +
+    #scale_y_continuous(labels=scales::percent) +
   labs(title = "A. Все области сразу, без разделения на ['SSCI'], ['AHCI'] и ['SSCI', 'AHCI']") +
   theme_bw() +
   scale_fill_brewer(palette = "Paired") +
@@ -344,9 +345,13 @@ data %>% distinct(UT, .keep_all = TRUE) %>% select(year,research_areas,field) %>
         legend.title= element_blank()) +
   theme(axis.text.x = element_text(size = 6, angle = 90, vjust=0.5),
         axis.text.y = element_text(size = 8)) 
+
+ggplotly(p)
 ```
 
-```{r}
+###### Скользящее среднее + реальные значения
+
+```{r, fig.dim = c(8,5)}
 data %>% 
   distinct(UT, .keep_all = TRUE) %>% select(year,research_areas) %>% 
   
@@ -369,7 +374,7 @@ data %>%
   #       expand=c(0,0)
   #   ) +
   scale_y_continuous(labels = function(x) paste0(x, "%")) +
-  facet_wrap(~research_areas, nrow = 3) +
+  facet_wrap(~research_areas, nrow = 3, labeller = label_wrap_gen(width=20)) +
   labs(title = "Б. Тоже самое что и рис А, но другой тип визуализации",
       subtitle = "светалая линия - реальные значения; темная линия - скользящее среднее (шаг = 3 года)") +
   theme_bw() +
@@ -385,6 +390,52 @@ data %>%
         legend.title= element_blank()) +
   theme(axis.text.x = element_text(size = 7, angle = 90, vjust=0.5),
         axis.text.y = element_text(size = 8)) 
+
+```
+
+###### Интерактивный (реальные значения)
+
+```{r, fig.dim = c(8,5)}
+p <- data %>% 
+  distinct(UT, .keep_all = TRUE) %>% select(year,research_areas) %>% 
+  
+  ## разворачиваем research_areas
+  separate_rows(research_areas, sep=";") %>% 
+  mutate(research_areas = str_trim(research_areas, "both")) %>% 
+  
+  group_by(research_areas) %>% mutate(research_areas = case_when(n() < 600 ~ "OTHER AREAS",
+                                                                 TRUE ~ research_areas)) %>% ungroup() %>% 
+  group_by(year, research_areas) %>% count() %>% ungroup() %>% 
+  group_by(year) %>% 
+  mutate(perc = round(100 * n / sum(n), 2)) %>%  
+  ggplot(aes(x=year, perc, color=research_areas)) + 
+  geom_line(alpha = 0.8) +
+  geom_point(alpha = 0.6, size=0.5) +
+  #geom_ma(ma_fun = SMA, n = 3, linetype = "solid") +
+  # scale_x_continuous(
+  #       labels = as.character(seq(min(df$year), max(df$year), by = 1)),
+  #       breaks = seq(min(df$year), max(df$year), by = 1),
+  #       expand=c(0,0)
+  #   ) +
+  scale_y_continuous(labels = function(x) paste0(x, "%")) +
+  facet_wrap(~research_areas, nrow = 3) +
+  labs(title = "Б. Тоже самое что и рис А, но другой тип визуализации",
+      subtitle = "светалая линия - реальные значения; темная линия - скользящее среднее (шаг = 3 года)") +
+  theme_bw() +
+  scale_color_brewer(palette = "Paired") +
+  guides(color=guide_legend(override.aes = list(size=5))) + 
+  theme(panel.grid = element_blank(),
+        panel.grid.major.x = element_line(size=0.1, color = "grey90", linetype = "solid"),
+        panel.grid.major.y = element_line(size=0.1, color = "grey90", linetype = "solid")) +
+  theme(strip.background = element_rect(fill = NA),
+        strip.text = element_text(colour = 'black', size = 6.5)) +
+  theme(axis.title = element_blank(),
+        legend.position = "none",
+        legend.title= element_blank()) +
+  theme(axis.text.x = element_text(size = 7, angle = 90, vjust=0.5),
+        axis.text.y = element_text(size = 8)) 
+
+ggplotly(p)
 ```
 
 
@@ -392,7 +443,9 @@ data %>%
 
 Динамика перерисована дальше в (2с), нагляднее. Столбики с числом статей с раскраской по областям малоинформативны в сцепке с графиком долей, лучше убрать раскраску и оставлять серыми.
 
-```{r, fig.dim = c(8.8, 8)}
+```{r, fig.dim = c(8, 4)}
+
+#fig.dim = c(8.8, 8)
 df <- data %>% distinct(UT, .keep_all = TRUE) %>% select(year,research_areas,field) %>% 
   
   ## разворачиваем research_areas
@@ -406,7 +459,7 @@ df <- data %>% distinct(UT, .keep_all = TRUE) %>% select(year,research_areas,fie
 
   group_by(year, research_areas) %>% count() %>% ungroup() %>% 
   group_by(year) %>% 
-  mutate(perc = n / sum(n))
+  mutate(perc = round(100 * n / sum(n), 2))
 
 df2 <- data %>% distinct(UT, .keep_all = TRUE) %>% select(year,research_areas,field) %>% 
   
@@ -420,7 +473,7 @@ df2 <- data %>% distinct(UT, .keep_all = TRUE) %>% select(year,research_areas,fi
                                                                  TRUE ~ research_areas)) %>% ungroup() %>% 
   group_by(year, research_areas) %>% count() %>% ungroup() %>% 
   group_by(year) %>% 
-  mutate(perc = n / sum(n))
+  mutate(perc = round(100 * n / sum(n), 2))
 
 
 df3 <- data %>% distinct(UT, .keep_all = TRUE) %>% select(year,research_areas,field) %>% 
@@ -435,11 +488,12 @@ df3 <- data %>% distinct(UT, .keep_all = TRUE) %>% select(year,research_areas,fi
                                                                  TRUE ~ research_areas)) %>% ungroup() %>% 
   group_by(year, research_areas) %>% count() %>% ungroup() %>% 
   group_by(year) %>% 
-  mutate(perc = n / sum(n))
+  mutate(perc = round(100 * n / sum(n), 2))
 
 p1a <- ggplot(df, aes(x=year, y=perc, fill=research_areas)) + 
   geom_col(size=0.3, colour="white") +
-    scale_y_continuous(labels=scales::percent) +
+    scale_y_continuous(labels = function(x) paste0(x, "%")) +
+    #scale_y_continuous(labels=scales::percent) +
           labs(fill = "['SSCI']")+
     theme_bw() +
   scale_fill_brewer(palette = "Paired") +
@@ -448,8 +502,8 @@ p1a <- ggplot(df, aes(x=year, y=perc, fill=research_areas)) +
   theme(strip.background = element_rect(fill = NA),
         strip.text = element_text(colour = 'black',size = 7)) +
   theme(axis.title = element_blank()) +
-  theme(axis.text.x = element_text(size = 6, angle = 0, vjust=0.5),
-        axis.text.y = element_text(size = 8)) 
+  theme(axis.text.x = element_text(size = 7, angle = 0, vjust=0.5),
+        axis.text.y = element_text(size = 7, angle = 90, vjust=0.5)) 
 
 p1b <- ggplot(df, aes(x=year, y=n, fill=research_areas)) + 
   geom_col(size=0.3, colour="white") +
@@ -463,15 +517,16 @@ p1b <- ggplot(df, aes(x=year, y=n, fill=research_areas)) +
         strip.text = element_text(colour = 'black',size = 7)) +
   theme(axis.title = element_blank(),
         legend.position = "none") +
-  theme(axis.text.x = element_text(size = 6, angle = 0, vjust=0.5),
-        axis.text.y = element_text(size = 8)) 
+  theme(axis.text.x = element_text(size = 7, angle = 0, vjust=0.5),
+        axis.text.y = element_text(size = 7, angle = 90, vjust=0.5)) 
 
 p1 <- (p1b + p1a) 
 
 
 p2a <- ggplot(df2, aes(x=year, y=perc, fill=research_areas)) + 
   geom_col(size=0.3, colour="white") +
-    scale_y_continuous(labels=scales::percent) +
+    scale_y_continuous(labels = function(x) paste0(x, "%")) +
+    #scale_y_continuous(labels=scales::percent) +
         labs(fill = "['AHCI']")+
     theme_bw() +
   scale_fill_brewer(palette = "Paired") +
@@ -480,8 +535,8 @@ p2a <- ggplot(df2, aes(x=year, y=perc, fill=research_areas)) +
   theme(strip.background = element_rect(fill = NA),
         strip.text = element_text(colour = 'black',size = 7)) +
   theme(axis.title = element_blank()) +
-  theme(axis.text.x = element_text(size = 6, angle = 0, vjust=0.5),
-        axis.text.y = element_text(size = 8)) 
+  theme(axis.text.x = element_text(size = 7, angle = 0, vjust=0.5),
+        axis.text.y = element_text(size = 7, angle = 90, vjust=0.5)) 
 
 p2b <- ggplot(df2, aes(x=year, y=n, fill=research_areas)) + 
   geom_col(size=0.3, colour="white") +
@@ -495,15 +550,16 @@ p2b <- ggplot(df2, aes(x=year, y=n, fill=research_areas)) +
         strip.text = element_text(colour = 'black',size = 7)) +
   theme(axis.title = element_blank(),
         legend.position = "none") +
-  theme(axis.text.x = element_text(size = 6, angle = 0, vjust=0.5),
-        axis.text.y = element_text(size = 8)) 
+  theme(axis.text.x = element_text(size = 7, angle = 0, vjust=0.5),
+        axis.text.y = element_text(size = 7, angle = 90, vjust=0.5)) 
 
 p2 <- (p2b + p2a) 
 
 
 p3a <- ggplot(df3, aes(x=year, y=perc, fill=research_areas)) + 
   geom_col(size=0.3, colour="white") +
-    scale_y_continuous(labels=scales::percent) +
+    scale_y_continuous(labels = function(x) paste0(x, "%")) +
+    #scale_y_continuous(labels=scales::percent) +
       labs(fill = "['SSCI', 'AHCI']")+
     theme_bw() +
   scale_fill_brewer(palette = "Paired") +
@@ -512,8 +568,8 @@ p3a <- ggplot(df3, aes(x=year, y=perc, fill=research_areas)) +
   theme(strip.background = element_rect(fill = NA),
         strip.text = element_text(colour = 'black',size = 7)) +
   theme(axis.title = element_blank()) +
-  theme(axis.text.x = element_text(size = 6, angle = 0, vjust=0.5),
-        axis.text.y = element_text(size = 8)) 
+  theme(axis.text.x = element_text(size = 7, angle = 0, vjust=0.5),
+        axis.text.y = element_text(size = 7, angle = 90, vjust=0.5)) 
 
 p3b <- ggplot(df3, aes(x=year, y=n, fill=research_areas)) + 
   geom_col(size=0.3, colour="white") +
@@ -527,11 +583,15 @@ p3b <- ggplot(df3, aes(x=year, y=n, fill=research_areas)) +
         strip.text = element_text(colour = 'black',size = 7)) +
   theme(axis.title = element_blank(),
         legend.position = "none") +
-  theme(axis.text.x = element_text(size = 6, angle = 0, vjust=0.5),
-        axis.text.y = element_text(size = 8)) 
+  theme(axis.text.x = element_text(size = 7, angle = 0, vjust=0.5),
+        axis.text.y = element_text(size = 7, angle = 90, vjust=0.5)) 
 
-p3 <- (p3b + p3a) 
-p1/p2/p3 + plot_layout(guides = "collect") 
+#p3 <- (p3b + p3a) 
+#p1/p2/p3 + plot_layout(guides = "collect") 
+
+subplot(style(ggplotly(p1b), showlegend = F), ggplotly(p1a))
+subplot(style(ggplotly(p2b), showlegend = F), ggplotly(p2a))
+subplot(style(ggplotly(p3b), showlegend = F), ggplotly(p3a))
 ```
 
 
@@ -829,12 +889,13 @@ df <- data %>% distinct(UT, .keep_all = TRUE) %>% #select(year,region,field) %>%
 
   group_by(year, region) %>% count() %>% ungroup() %>% 
   group_by(year) %>% 
-  mutate(perc = n / sum(n))
+  mutate(perc = round(100 * n / sum(n), 2)) 
 
 p1a <- ggplot(df, aes(x=year, y=perc, fill=region)) + 
     geom_area(alpha=0.8 , size=0.5, colour="black") +
-    labs(title = "А.Доля") +
-  scale_y_continuous(labels=scales::percent) +
+    #labs(title = "А.Доля") +
+  #scale_y_continuous(labels=scales::percent) +
+  scale_y_continuous(labels = function(x) paste0(x, "%")) +
   theme_bw() +
   scale_fill_brewer(palette = "Paired") +
   
@@ -845,17 +906,18 @@ p1a <- ggplot(df, aes(x=year, y=perc, fill=region)) +
   theme(axis.title = element_blank(),
         legend.position = 'none',
         legend.title= element_blank()) +
-  theme(axis.text.x = element_text(size = 6, angle = 0, vjust=0.5),
-        axis.text.y = element_text(size = 8)) 
+  theme(axis.text.x = element_text(size = 7, angle = 0, vjust=0.5),
+        axis.text.y = element_text(size = 7, angle = 90, vjust=0.5)) 
 
 # ggplot(df, aes(x=year, y=n, fill=region)) + 
 #   geom_col(alpha=0.6 , size=1, colour="black") +
 #    theme(legend.position = "bottom")
 
-p1b <-ggplot(df, aes(x=year, y=n, color=region, group = region)) + 
-  ggalt::geom_xspline(alpha=0.8 , size=1, spline_shape=-0.6) +
-  labs(title = "B. Кол-во статей по годам") +
-  #geom_point(alpha=0.6 , size=2) +
+p1b <-ggplot(df, aes(x=year, y=n, color=region)) + 
+  geom_line(alpha=0.8 , size=0.8) +
+  #ggalt::geom_xspline(alpha=0.8 , size=1, spline_shape=-0.6) +
+  #labs(title = "B. Кол-во статей по годам") +
+  geom_point(alpha=0.6 , size=1) +
   #geom_point(aes(fill= region), alpha=0.6 , size=2, colour="white",pch=21) +
   theme_bw() +
   scale_color_brewer(palette = "Paired") +
@@ -866,10 +928,34 @@ p1b <-ggplot(df, aes(x=year, y=n, color=region, group = region)) +
         strip.text = element_text(colour = 'black',size = 7)) +
   theme(axis.title = element_blank(),
         legend.title= element_blank()) +
-  theme(axis.text.x = element_text(size = 6, angle = 0, vjust=0.5),
-        axis.text.y = element_text(size = 8)) 
+  theme(axis.text.x = element_text(size = 7, angle = 0, vjust=0.5),
+        axis.text.y = element_text(size = 7, angle = 90, vjust=0.5)) 
 
-(p1a + p1b) + plot_layout(guides = "collect") #+ plot_annotation(title = "А.Доля и кол-во статей по годам")
+#(p1a + p1b) + plot_layout(guides = "collect") #+ plot_annotation(title = "А.Доля и кол-во статей по годам")
+
+annotations = list( 
+  list( 
+    x = 0.25,  
+    y = 1.0,  
+    text = paste0('(А) Доля статей по годам'),
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE 
+  ),  
+  list( 
+    x = 0.75,  
+    y = 1,  
+    text = paste0('(B) Кол-во статей по годам'),
+    xref = "paper",  
+    yref = "paper",  
+    xanchor = "center",  
+    yanchor = "bottom",  
+    showarrow = FALSE 
+  ))
+
+subplot(style(ggplotly(p1a), showlegend = F), ggplotly(p1b)) %>%  layout(annotations = annotations)
 ```
 
 ##### Скользящее среднее + релальные значения
@@ -908,7 +994,7 @@ df %>% mutate(perc=perc*100) %>%
 
 ```
 
-##### Реальные (инерактивный) 
+##### Интерактивный (реальные значения)
 
 ```{r}
 
@@ -920,7 +1006,7 @@ df <- data %>% distinct(UT, .keep_all = TRUE) %>% #select(year,region,field) %>%
   mutate(perc = n / sum(n))
 
 p <- df %>% mutate(perc=round(perc*100, digits=2)) %>% 
-  ggplot(aes(x=year, perc, color=region, group = region)) + 
+  ggplot(aes(x=year, perc, color=region)) + 
   geom_line(alpha = 0.6) +
   geom_point(alpha = 0.6, size=1) +
   #geom_ma(ma_fun = SMA, n = 3, linetype = "solid") +
@@ -1070,7 +1156,7 @@ df %>% mutate(perc=perc*100) %>%
 
 ```
 
-##### Реальные (инерактивный) 
+##### Интерактивный (реальные значения)
 
 ```{r, fig.dim = c(10, 5)}
 df <- data %>% distinct(UT, .keep_all = TRUE) %>%
@@ -1088,7 +1174,7 @@ df <- data %>% distinct(UT, .keep_all = TRUE) %>%
   mutate(perc = n / sum(n))
 
 p <- df %>% mutate(perc=round(perc*100, 2)) %>% 
-  ggplot(aes(x=year, perc, color=research_areas, group = research_areas)) + 
+  ggplot(aes(x=year, perc, color=research_areas)) + 
   geom_line(alpha = 0.6) +
   geom_point(alpha = 0.2, size=0.6) +
   geom_ma(ma_fun = SMA, n = 3, linetype = "solid") +
@@ -1571,7 +1657,7 @@ p1
 
 ```
 
-##### Реальные (интерактивный)
+##### Интерактивный (реальные значения)
 
 ```{r,fig.dim = c(8, 4)}
 df <- data %>% #distinct(UT, .keep_all = TRUE) %>% 
@@ -1589,7 +1675,7 @@ df <- data %>% #distinct(UT, .keep_all = TRUE) %>%
          top_25_perc = round(100 * top_25 / count, 2)) %>% 
   pivot_longer(-c(year,region, count, top_1, top_10, top_25), names_to = "top_x", values_to = "value") 
 
-p1 <- df %>% ggplot(aes(x=year, value, color=top_x, group = top_x)) + 
+p1 <- df %>% ggplot(aes(x=year, value, color=top_x)) + 
   geom_line(alpha = 0.7) +
   geom_point(alpha = 0.7,size=0.7) +
   #geom_ma(ma_fun = SMA, n = 3, linetype = "solid") +
